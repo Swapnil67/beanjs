@@ -7,46 +7,75 @@ const fs = require("node:fs/promises");
 class Bean {
   constructor() {
     this.server = http.createServer();
+    this.routes = {};
+
+    this.server.on("request", (req, res) => {
+      /**
+       *
+       * @param {*} statuscode
+       * Add a statuscode to response
+       */
+      res.status = (statuscode) => {
+        res.statusCode = statuscode;
+        return res;
+      };
+
+      /**
+       *
+       * @param {*} path
+       * @param {*} mime
+       * Send a file to client
+       */
+      res.sendFile = async (path, mime) => {
+        res.setHeader("Content-Type", mime);
+        const fileHandler = await fs.open(path, "r");
+        const fileStream = fileHandler.createReadStream();
+        fileStream.pipe(res);
+        fileStream.on("end", () => {
+          fileHandler.close();
+        });
+      };
+
+      /**
+       *
+       * @param {*} data
+       * Send json data back to client (for small json data, less than highWaterMark)
+       */
+      res.json = (data) => {
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify(data));
+      };
+
+      /**
+       * 
+       * @param {*} data 
+       * Send plain text data
+       */
+      res.send = (data) => {
+        res.setHeader("Content-Type", "text/plain");
+        res.end(data.toString());
+      };
+
+      // * If the route object does not have a key of req.method + req.url,
+      // * Return 404
+      if (!this.routes[req.method.toLowerCase() + req.url]) {
+        return res
+          .status(404)
+          .json({ error: `Cannot ${req.method} ${req.url}` });
+      }
+      this.routes[req.method.toLowerCase() + req.url](req, res);
+    });
+  }
+
+  route(method, path, cb) {
+    this.routes[method.toLowerCase() + path] = cb;
   }
 
   listen(port, cb) {
     this.server.listen(port, () => {
       cb();
-    })
+    });
   }
-
-  route(method, url, cb) {
-    this.server.on('request', (req, res) => {
-
-      /**
-       * 
-       * @param {*} statuscode 
-       * Add a statuscode to response
-       */
-      res.status = (statuscode) => {
-        res.statusCode = statuscode;
-      }
-
-      /**
-       * 
-       * @param {*} path 
-       * @param {*} mime 
-       * Send a file to client
-       */
-      res.sendFile = async (path, mime) => {
-        res.setHeader('Content-Type', mime);
-        const fileHandler = await fs.open(path, 'r');
-        const fileStream = fileHandler.createReadStream();
-        fileStream.pipe(res);
-        fileStream.on('end', () => {
-          fileHandler.close()
-        })
-      }
-
-      cb(req, res);
-    })
-  }
-
 }
 
 module.exports = Bean;
