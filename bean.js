@@ -8,8 +8,21 @@ class Bean {
   constructor() {
     this.server = http.createServer();
     this.routes = {};
+    this.middleware = [];
 
     this.server.on("request", (req, res) => {
+      if (req.headers.cookie) {
+        const raw_cookies = req.headers.cookie;
+        const cookies = raw_cookies.split(";");
+        const cookieObj = {};
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i];
+          const [key, value] = cookie.split("=");
+          cookieObj[key.trim()] = value;
+        }
+        req.headers.cookie = cookieObj;
+      }
+
       /**
        *
        * @param {*} statuscode
@@ -47,8 +60,8 @@ class Bean {
       };
 
       /**
-       * 
-       * @param {*} data 
+       *
+       * @param {*} data
        * Send plain text data
        */
       res.send = (data) => {
@@ -56,15 +69,42 @@ class Bean {
         res.end(data.toString());
       };
 
-      // * If the route object does not have a key of req.method + req.url,
-      // * Return 404
-      if (!this.routes[req.method.toLowerCase() + req.url]) {
-        return res
-          .status(404)
-          .json({ error: `Cannot ${req.method} ${req.url}` });
-      }
-      this.routes[req.method.toLowerCase() + req.url](req, res);
+      // * Run all the middleware functions
+      // this.middleware[0](req, res, () => {
+      //   this.middleware[1](req, res, () => {
+      //     this.middleware[2](req, res, () => {
+      //       this.routes[req.method.toLowerCase() + req.url](req, res);
+      //     })
+      //   })
+      // })
+
+      // * Run all the middleware functions
+      const runMiddleware = (req, res, middleware, index) => {
+        // * Exit Point
+        if (index == this.middleware.length) {
+          // * If the route object does not have a key of req.method + req.url,
+          // * Return 404
+          if (!this.routes[req.method.toLowerCase() + req.url]) {
+            return res
+              .status(404)
+              .json({ error: `Cannot ${req.method} ${req.url}` });
+          }
+          this.routes[req.method.toLowerCase() + req.url](req, res);
+        } else {
+          middleware[index](req, res, () => {
+            runMiddleware(req, res, middleware, index + 1);
+          });
+        }
+      };
+
+      runMiddleware(req, res, this.middleware, 0);
+
+      // this.routes[req.method.toLowerCase() + req.url](req, res);
     });
+  }
+
+  beforeEach(cb) {
+    this.middleware.push(cb);
   }
 
   route(method, path, cb) {
