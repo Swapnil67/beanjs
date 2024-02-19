@@ -99,7 +99,6 @@ class Bean {
 
       runMiddleware(req, res, this.middleware, 0);
 
-      // this.routes[req.method.toLowerCase() + req.url](req, res);
     });
   }
 
@@ -109,6 +108,10 @@ class Bean {
 
   route(method, path, cb) {
     this.routes[method.toLowerCase() + path] = cb;
+  }
+
+  static(folder) {
+    console.log("Static Files folder ", folder);
   }
 
   listen(port, cb) {
